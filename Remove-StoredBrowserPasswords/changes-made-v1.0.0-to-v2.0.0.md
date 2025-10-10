@@ -3,7 +3,6 @@
 **Date**: 2024-12-19  
 **Version**: v2.0.0  
 
-
 ## Summary of Changes
 
 This document details all modifications made to the Browser Password Purge script from version 1.0.0 to version 2.0.0, including critical fixes, new features, and comprehensive improvements.

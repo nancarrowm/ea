@@ -5,7 +5,6 @@ Intune-ready PowerShell script. Run as SYSTEM.
 Deletes all saved-password databases per user profile.
 Optionally migrates Chrome profiles preserving history/cookies/cache while removing passwords.
 
-Author: Enhanced by AI Assistant
 Date: $(Get-Date -Format "yyyy-MM-dd")
 Changelog: 
 - v2.0.0: Added Chrome profile migration feature
