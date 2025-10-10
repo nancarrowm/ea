@@ -1,13 +1,14 @@
 <# 
 Google Sync Detection and De-authentication Script
-Version: 1.0.0
+Version: 1.1.0
 Intune-ready PowerShell script. Run as SYSTEM or Administrator.
-Detects Google Sync status in Chrome and Edge, de-authenticates users, and prepares for password deletion.
+Detects Google Sync status in Chrome, de-authenticates users, and prepares for password deletion.
 
 Date: $(Get-Date -Format "yyyy-MM-dd")
 Changelog: 
+- v1.1.0: Removed Edge de-authentication functionality
 - v1.0.0: Initial release with Google Sync detection
-- v1.0.0: Chrome and Edge sync de-authentication
+- v1.0.0: Chrome sync de-authentication
 - v1.0.0: Comprehensive error handling and logging
 
 Usage:
@@ -58,7 +59,7 @@ Function Write-Log {
 
 # Initialize script execution logging
 Write-Log "=== Google Sync Detection and De-authentication Script Started ===" -Level "INFO"
-Write-Log "Script Version: 1.0.0" -Level "INFO"
+Write-Log "Script Version: 1.1.0" -Level "INFO"
 Write-Log "Force De-authentication: $($ForceDeauth.IsPresent)" -Level "INFO"
 Write-Log "Skip Detection: $($SkipDetection.IsPresent)" -Level "INFO"
 Write-Log "Execution User: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)" -Level "INFO"
@@ -70,7 +71,7 @@ Write-Log "Execution User: $([System.Security.Principal.WindowsIdentity]::GetCur
 Write-Log "Initiating browser process termination to release file locks" -Level "INFO"
 
 # Define browser process names to terminate
-$browserProcesses = @('chrome', 'msedge')
+$browserProcesses = @('chrome')
 
 # Terminate browser processes with enhanced error handling
 foreach ($processName in $browserProcesses) {
@@ -97,8 +98,6 @@ Start-Sleep -Seconds 5
 # =============================================================================
 # GOOGLE SYNC DETECTION AND DE-AUTHENTICATION FUNCTIONS
 # =============================================================================
-
-# Function to detect Chrome sync status
 Function Get-ChromeSyncStatus {
     param(
         [string]$ChromeProfilePath,
@@ -175,82 +174,6 @@ Function Get-ChromeSyncStatus {
     return $syncStatus
 }
 
-# Function to detect Edge sync status
-Function Get-EdgeSyncStatus {
-    param(
-        [string]$EdgeProfilePath,
-        [string]$UserContext
-    )
-    
-    Write-Log "Detecting Edge sync status for user: $UserContext" -Level "INFO"
-    
-    $syncStatus = @{
-        IsEnabled = $false
-        AccountEmail = $null
-        SyncData = @()
-        LastSyncTime = $null
-        Error = $null
-    }
-    
-    try {
-        # Check Edge preferences file for sync settings
-        $preferencesPath = Join-Path $EdgeProfilePath "Default\Preferences"
-        
-        if (Test-Path $preferencesPath) {
-            try {
-                # Read and parse Edge preferences
-                $preferencesContent = Get-Content -Path $preferencesPath -Raw -ErrorAction Stop
-                $preferences = $preferencesContent | ConvertFrom-Json -ErrorAction Stop
-                
-                # Check for Microsoft account sign-in
-                if ($preferences.account_info -and $preferences.account_info.length -gt 0) {
-                    $accountInfo = $preferences.account_info[0]
-                    $syncStatus.AccountEmail = $accountInfo.email
-                    Write-Log "Found Edge account: $($syncStatus.AccountEmail)" -Level "INFO"
-                }
-                
-                # Check sync settings (Edge uses different structure)
-                if ($preferences.profile -and $preferences.profile.sync) {
-                    $syncSettings = $preferences.profile.sync
-                    
-                    # Check if sync is enabled
-                    if ($syncSettings.sync_enabled -eq $true) {
-                        $syncStatus.IsEnabled = $true
-                        Write-Log "Edge sync is ENABLED for user: $UserContext" -Level "WARNING"
-                        
-                        # Get sync data types
-                        if ($syncSettings.sync_data_types) {
-                            $syncStatus.SyncData = $syncSettings.sync_data_types
-                            Write-Log "Sync data types: $($syncStatus.SyncData -join ', ')" -Level "INFO"
-                        }
-                        
-                        # Get last sync time
-                        if ($syncSettings.last_sync_time) {
-                            $syncStatus.LastSyncTime = [DateTimeOffset]::FromUnixTimeSeconds($syncSettings.last_sync_time).DateTime
-                            Write-Log "Last sync time: $($syncStatus.LastSyncTime)" -Level "INFO"
-                        }
-                    } else {
-                        Write-Log "Edge sync is DISABLED for user: $UserContext" -Level "INFO"
-                    }
-                } else {
-                    Write-Log "No sync settings found in Edge preferences for user: $UserContext" -Level "INFO"
-                }
-                
-            } catch {
-                $syncStatus.Error = "Failed to parse Edge preferences: $($_.Exception.Message)"
-                Write-Log "Error parsing Edge preferences for user $UserContext`: $($_.Exception.Message)" -Level "ERROR"
-            }
-        } else {
-            Write-Log "Edge preferences file not found for user: $UserContext" -Level "DEBUG"
-        }
-        
-    } catch {
-        $syncStatus.Error = "Failed to read Edge preferences: $($_.Exception.Message)"
-        Write-Log "Error reading Edge preferences for user $UserContext`: $($_.Exception.Message)" -Level "ERROR"
-    }
-    
-    return $syncStatus
-}
 
 # Function to de-authenticate Chrome user
 Function Disable-ChromeSync {
@@ -342,95 +265,6 @@ Function Disable-ChromeSync {
     }
 }
 
-# Function to de-authenticate Edge user
-Function Disable-EdgeSync {
-    param(
-        [string]$EdgeProfilePath,
-        [string]$UserContext
-    )
-    
-    Write-Log "De-authenticating Edge user: $UserContext" -Level "INFO"
-    
-    try {
-        $preferencesPath = Join-Path $EdgeProfilePath "Default\Preferences"
-        
-        if (Test-Path $preferencesPath) {
-            try {
-                # Read current preferences
-                $preferencesContent = Get-Content -Path $preferencesPath -Raw -ErrorAction Stop
-                $preferences = $preferencesContent | ConvertFrom-Json -ErrorAction Stop
-                
-                # Disable sync
-                if ($preferences.profile -and $preferences.profile.sync) {
-                    $preferences.profile.sync.sync_enabled = $false
-                    Write-Log "Disabled Edge sync in preferences" -Level "INFO"
-                }
-                
-                # Clear account info
-                if ($preferences.account_info) {
-                    $preferences.account_info = @()
-                    Write-Log "Cleared Edge account info" -Level "INFO"
-                }
-                
-                # Clear sign-in data
-                if ($preferences.signin) {
-                    $preferences.signin.allowed = $false
-                    Write-Log "Disabled Edge sign-in" -Level "INFO"
-                }
-                
-                # Save updated preferences
-                $preferences | ConvertTo-Json -Depth 10 | Out-File -FilePath $preferencesPath -Encoding UTF8 -Force
-                Write-Log "Updated Edge preferences file" -Level "INFO"
-                
-                # Remove Microsoft account tokens
-                $tokenFiles = @(
-                    "Default\Microsoft Profile Picture.png",
-                    "Default\Microsoft Profile Picture (1).png",
-                    "Default\Microsoft Profile Picture (2).png",
-                    "Default\Microsoft Profile Picture (3).png",
-                    "Default\Microsoft Profile Picture (4).png"
-                )
-                
-                foreach ($tokenFile in $tokenFiles) {
-                    $tokenPath = Join-Path $EdgeProfilePath $tokenFile
-                    if (Test-Path $tokenPath) {
-                        try {
-                            Remove-Item -Path $tokenPath -Force -ErrorAction Stop
-                            Write-Log "Removed Edge token file: $tokenFile" -Level "INFO"
-                        } catch {
-                            Write-Log "Failed to remove Edge token file $tokenFile`: $($_.Exception.Message)" -Level "WARNING"
-                        }
-                    }
-                }
-                
-                # Remove Microsoft account data
-                $microsoftAccountDir = Join-Path $EdgeProfilePath "Default\Microsoft Account Pictures"
-                if (Test-Path $microsoftAccountDir) {
-                    try {
-                        Remove-Item -Path $microsoftAccountDir -Recurse -Force -ErrorAction Stop
-                        Write-Log "Removed Edge Microsoft Account Pictures directory" -Level "INFO"
-                    } catch {
-                        Write-Log "Failed to remove Edge Microsoft Account Pictures directory: $($_.Exception.Message)" -Level "WARNING"
-                    }
-                }
-                
-                Write-Log "Successfully de-authenticated Edge user: $UserContext" -Level "INFO"
-                return $true
-                
-            } catch {
-                Write-Log "Failed to update Edge preferences for user $UserContext`: $($_.Exception.Message)" -Level "ERROR"
-                return $false
-            }
-        } else {
-            Write-Log "Edge preferences file not found for user: $UserContext" -Level "WARNING"
-            return $false
-        }
-        
-    } catch {
-        Write-Log "Failed to de-authenticate Edge user $UserContext`: $($_.Exception.Message)" -Level "ERROR"
-        return $false
-    }
-}
 
 # =============================================================================
 # USER PROFILE ENUMERATION AND PROCESSING SECTION
@@ -457,9 +291,7 @@ Write-Log "Found $($profileRoots.Count) user profiles to process" -Level "INFO"
 # Initialize counters for summary reporting
 $totalUsersProcessed = 0
 $totalChromeSyncDetected = 0
-$totalEdgeSyncDetected = 0
 $totalChromeDeauthSuccess = 0
-$totalEdgeDeauthSuccess = 0
 $totalFailedOperations = 0
 
 # Process each user profile
@@ -526,62 +358,6 @@ foreach ($profile in $profileRoots) {
         Write-Log "No Chrome installation found for user: $userName" -Level "DEBUG"
     }
     
-    # =============================================================================
-    # EDGE SYNC DETECTION AND DE-AUTHENTICATION
-    # =============================================================================
-    
-    $edgeUserDataPath = Join-Path $localAppData 'Microsoft\Edge\User Data'
-    if (Test-Path $edgeUserDataPath) {
-        Write-Log "Processing Edge sync for user: $userName" -Level "INFO"
-        
-        try {
-            $edgeDefaultProfile = Join-Path $edgeUserDataPath 'Default'
-            
-            if (Test-Path $edgeDefaultProfile) {
-                # Detect Edge sync status
-                if (-not $SkipDetection) {
-                    $edgeSyncStatus = Get-EdgeSyncStatus -EdgeProfilePath $edgeDefaultProfile -UserContext $userName
-                    
-                    if ($edgeSyncStatus.IsEnabled) {
-                        $totalEdgeSyncDetected++
-                        Write-Log "Edge sync ENABLED for user: $userName" -Level "WARNING"
-                        
-                        if ($edgeSyncStatus.AccountEmail) {
-                            Write-Log "Edge account: $($edgeSyncStatus.AccountEmail)" -Level "WARNING"
-                        }
-                        
-                        if ($edgeSyncStatus.SyncData.Count -gt 0) {
-                            Write-Log "Edge sync data types: $($edgeSyncStatus.SyncData -join ', ')" -Level "WARNING"
-                        }
-                    } else {
-                        Write-Log "Edge sync DISABLED for user: $userName" -Level "INFO"
-                    }
-                }
-                
-                # De-authenticate Edge user
-                if ($ForceDeauth -or $SkipDetection -or ($edgeSyncStatus.IsEnabled)) {
-                    $deauthResult = Disable-EdgeSync -EdgeProfilePath $edgeDefaultProfile -UserContext $userName
-                    
-                    if ($deauthResult) {
-                        $totalEdgeDeauthSuccess++
-                        Write-Log "Successfully de-authenticated Edge for user: $userName" -Level "INFO"
-                    } else {
-                        Write-Log "Failed to de-authenticate Edge for user: $userName" -Level "ERROR"
-                        $totalFailedOperations++
-                    }
-                }
-            } else {
-                Write-Log "Edge Default profile not found for user: $userName" -Level "DEBUG"
-            }
-            
-        } catch {
-            Write-Log "Error processing Edge sync for user $userName`: $($_.Exception.Message)" -Level "ERROR"
-            $totalFailedOperations++
-        }
-    } else {
-        Write-Log "No Edge installation found for user: $userName" -Level "DEBUG"
-    }
-    
     Write-Log "Completed processing for user: $userName" -Level "INFO"
 }
 
@@ -590,22 +366,20 @@ foreach ($profile in $profileRoots) {
 # =============================================================================
 
 Write-Log "=== Google Sync Detection and De-authentication Script Execution Summary ===" -Level "INFO"
-Write-Log "Script Version: 1.0.0" -Level "INFO"
+Write-Log "Script Version: 1.1.0" -Level "INFO"
 Write-Log "Force De-authentication: $($ForceDeauth.IsPresent)" -Level "INFO"
 Write-Log "Skip Detection: $($SkipDetection.IsPresent)" -Level "INFO"
 Write-Log "Total Users Processed: $totalUsersProcessed" -Level "INFO"
 
 if (-not $SkipDetection) {
     Write-Log "Total Chrome Sync Detected: $totalChromeSyncDetected" -Level "INFO"
-    Write-Log "Total Edge Sync Detected: $totalEdgeSyncDetected" -Level "INFO"
 }
 
 Write-Log "Total Chrome De-authentication Success: $totalChromeDeauthSuccess" -Level "INFO"
-Write-Log "Total Edge De-authentication Success: $totalEdgeDeauthSuccess" -Level "INFO"
 Write-Log "Total Failed Operations: $totalFailedOperations" -Level "INFO"
 
-if ($totalChromeSyncDetected -gt 0 -or $totalEdgeSyncDetected -gt 0) {
-    Write-Log "WARNING: Sync was detected and de-authenticated. Users will need to re-sign in." -Level "WARNING"
+if ($totalChromeSyncDetected -gt 0) {
+    Write-Log "WARNING: Chrome sync was detected and de-authenticated. Users will need to re-sign in." -Level "WARNING"
 }
 
 Write-Log "Script execution completed successfully" -Level "INFO"

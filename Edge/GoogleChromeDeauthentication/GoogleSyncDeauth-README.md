@@ -1,29 +1,22 @@
 # Google Sync Detection and De-authentication Script
 
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Date**: 2024-12-19  
 **Compatibility**: Windows PowerShell 5.1+, PowerShell Core 7.0+
 
 ## Overview
 
-This PowerShell script is designed for enterprise environments to detect Google Sync status in Chrome and Edge browsers, and de-authenticate users before password deletion operations. The script ensures that cloud-synced passwords are not restored after local password deletion by breaking the sync connection and clearing authentication tokens.
+This PowerShell script is designed for enterprise environments to detect Google Sync status in Chrome browsers and de-authenticate users before password deletion operations. The script ensures that cloud-synced passwords are not restored after local password deletion by breaking the sync connection and clearing authentication tokens.
 
 ## Features
 
 ### Core Functionality
-- **Sync Detection**: Detects Google Sync status in Chrome and Edge browsers
-- **Account Detection**: Identifies signed-in Google/Microsoft accounts
+- **Chrome Sync Detection**: Detects Google account sync status in Chrome browsers
+- **Account Detection**: Identifies signed-in Google accounts
 - **De-authentication**: Safely de-authenticates users and disables sync
 - **Token Cleanup**: Removes authentication tokens and account data
 - **Multi-User Support**: Processes all local user profiles
 - **Enterprise Ready**: Designed for Microsoft Intune deployment
-
-### Sync Detection Capabilities
-- **Chrome Sync**: Detects Google account sync status and data types
-- **Edge Sync**: Detects Microsoft account sync status and data types
-- **Account Information**: Identifies signed-in account email addresses
-- **Sync Data Types**: Reports what data is being synced
-- **Last Sync Time**: Shows when last sync occurred
 
 ## Usage
 
@@ -54,7 +47,7 @@ This PowerShell script is designed for enterprise environments to detect Google 
 - **Execution Context**: Must run with SYSTEM or Administrator privileges
 - **PowerShell Version**: 5.1 or higher
 - **Operating System**: Windows 10/11, Windows Server 2016+
-- **Browser Requirements**: Chrome and/or Edge must be installed
+- **Browser Requirements**: Chrome must be installed
 - **Permissions**: Full access to user profile directories
 
 ## Sync Detection Details
@@ -67,21 +60,10 @@ The script analyzes Chrome preferences to detect:
 - **Last Sync Time**: When the last sync occurred
 - **Account Email**: The email address of the signed-in account
 
-### Edge Sync Detection
-The script analyzes Edge preferences to detect:
-- **Account Sign-in Status**: Whether a Microsoft account is signed in
-- **Sync Enabled Status**: Whether sync is currently enabled
-- **Sync Data Types**: What data is being synced
-- **Last Sync Time**: When the last sync occurred
-- **Account Email**: The email address of the signed-in account
-
 ### File Locations Analyzed
 
 #### Chrome Preferences
 - `C:\Users\[Username]\AppData\Local\Google\Chrome\User Data\Default\Preferences`
-
-#### Edge Preferences
-- `C:\Users\[Username]\AppData\Local\Microsoft\Edge\User Data\Default\Preferences`
 
 ## De-authentication Process
 
@@ -91,13 +73,6 @@ The script analyzes Edge preferences to detect:
 3. **Disable Sign-in**: Sets sign-in to not allowed
 4. **Remove Tokens**: Deletes Google account picture files
 5. **Clean Account Data**: Removes Google Account Pictures directory
-
-### Edge De-authentication
-1. **Disable Sync**: Sets `sync_enabled` to `false` in preferences
-2. **Clear Account Info**: Removes account information from preferences
-3. **Disable Sign-in**: Sets sign-in to not allowed
-4. **Remove Tokens**: Deletes Microsoft account picture files
-5. **Clean Account Data**: Removes Microsoft Account Pictures directory
 
 ## Logging
 
@@ -192,21 +167,11 @@ The script implements comprehensive error handling:
 - **themes**: Browser themes
 - **apps**: Installed web apps
 
-### Edge Sync Data Types
-- **passwords**: Saved passwords
-- **favorites**: Bookmarks and favorites
-- **history**: Browsing history
-- **tabs**: Open tabs
-- **settings**: Browser settings
-- **extensions**: Installed extensions
-- **collections**: Collections feature
-- **addresses**: Saved addresses
-
 ## User Impact
 
 ### After De-authentication
-- **Sign-out Required**: Users will be signed out of their browser accounts
-- **Sync Disabled**: Browser sync will be disabled
+- **Sign-out Required**: Users will be signed out of their Chrome accounts
+- **Sync Disabled**: Chrome sync will be disabled
 - **Re-authentication**: Users will need to sign back in if they want to use sync
 - **Password Manager**: Opportunity to introduce enterprise password manager
 
@@ -217,6 +182,11 @@ The script implements comprehensive error handling:
 - **Support**: Provide contact information for assistance
 
 ## Version History
+
+### v1.1.0 (2024-12-19)
+- **CHANGED**: Removed Edge de-authentication functionality
+- **FOCUSED**: Chrome-only sync detection and de-authentication
+- **UPDATED**: Documentation and logging to reflect Chrome-only operation
 
 ### v1.0.0 (2024-12-19)
 - **NEW**: Google Sync detection functionality
