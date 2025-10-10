@@ -1,7 +1,6 @@
 # Browser Password Purge with Profile Migration
 
 **Version**: 2.0.0  
-**Author**: Enhanced by AI Assistant  
 **Date**: 2024-12-19  
 **Compatibility**: Windows PowerShell 5.1+, PowerShell Core 7.0+
 
