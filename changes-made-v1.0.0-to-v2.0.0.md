@@ -2,7 +2,7 @@
 
 **Date**: 2024-12-19  
 **Version**: v2.0.0  
-**Author**: AI Assistant Enhancement  
+
 
 ## Summary of Changes
 
