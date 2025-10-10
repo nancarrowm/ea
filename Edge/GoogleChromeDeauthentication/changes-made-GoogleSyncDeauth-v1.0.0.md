@@ -11,7 +11,7 @@ This document details the creation of the Google Sync Detection and De-authentic
 
 ### GoogleSyncDeauth.ps1
 **Purpose**: Detect Google Sync status and de-authenticate users before password deletion
-**Location**: `/Users/nancarrowm/Documents/_git/pwsh/_team-blue/Remove-StoredBrowserPasswords/GoogleSyncDeauth.ps1`
+**Location**: `/.../GoogleSyncDeauth.ps1`
 
 ## Core Functionality Implemented
 
