@@ -11,7 +11,7 @@ This document details the creation of the Password Manager Detection and Dashlan
 
 ### PasswordManagerDetection.ps1
 **Purpose**: Detect password manager applications and browser extensions, assess Dashlane migration compatibility
-**Location**: `/Users/nancarrowm/Documents/_git/pwsh/_team-blue/Remove-StoredBrowserPasswords/PasswordManagerDetection.ps1`
+**Location**: `[Redacted]`
 
 ## Core Functionality Implemented
 
