@@ -39,7 +39,7 @@ $scriptBlocks = @{
             $loggedOnUsers = Get-WmiObject -Class Win32_ComputerSystem | Select-Object -ExpandProperty UserName
             $lastLogon = Get-WmiObject -Class Win32_NetworkLoginProfile |
                 Where-Object { $_.Name -notlike "*SYSTEM*" } |
-                Select-Object -First 5 Name, @{N='LastLogon';E={[Management.ManagementDateTimeConverter]::ToDateTime($_.LastLogon)}}
+                Select-Object Name, @{N='LastLogon';E={[Management.ManagementDateTimeConverter]::ToDateTime($_.LastLogon)}}
 
             @{
                 CurrentUser = $currentUser
@@ -159,7 +159,7 @@ $scriptBlocks = @{
                 Select-Object InterfaceAlias, ServerAddresses
 
             $dnsCache = Get-DnsClientCache |
-                Select-Object -First 20 Entry, Name, Type, TimeToLive, Data
+                Select-Object Entry, Name, Type, TimeToLive, Data
 
             @{
                 DNSServers = $dnsServers
@@ -176,7 +176,7 @@ $scriptBlocks = @{
 
             $firewallRules = Get-NetFirewallRule |
                 Where-Object { $_.Enabled -eq $true } |
-                Select-Object -First 50 DisplayName, Direction, Action, Profile, Enabled
+                Select-Object DisplayName, Direction, Action, Profile, Enabled
 
             @{
                 Profiles = $firewallProfiles
@@ -200,16 +200,15 @@ $scriptBlocks = @{
             foreach ($path in $regPaths) {
                 $apps += Get-ItemProperty $path -ErrorAction SilentlyContinue |
                     Where-Object { $_.DisplayName } |
-                    Select-Object DisplayName, DisplayVersion, Publisher, InstallDate
+                    Select-Object DisplayName, DisplayVersion, Publisher, InstallDate, InstallLocation
             }
 
             # Also get modern apps
             $modernApps = Get-AppxPackage |
-                Select-Object Name, Version, Publisher |
-                Select-Object -First 30
+                Select-Object Name, Version, Publisher, InstallLocation
 
             @{
-                TraditionalApps = ($apps | Sort-Object DisplayName -Unique | Select-Object -First 100)
+                TraditionalApps = ($apps | Sort-Object DisplayName -Unique)
                 ModernApps = $modernApps
             }
         } catch {
@@ -237,13 +236,13 @@ $scriptBlocks = @{
 
     'EventLogs' = {
         try {
-            $systemErrors = Get-EventLog -LogName System -EntryType Error -Newest 20 -ErrorAction SilentlyContinue |
+            $systemErrors = Get-EventLog -LogName System -EntryType Error -Newest 100 -ErrorAction SilentlyContinue |
                 Select-Object TimeGenerated, Source, EventID, Message
 
-            $applicationErrors = Get-EventLog -LogName Application -EntryType Error -Newest 20 -ErrorAction SilentlyContinue |
+            $applicationErrors = Get-EventLog -LogName Application -EntryType Error -Newest 100 -ErrorAction SilentlyContinue |
                 Select-Object TimeGenerated, Source, EventID, Message
 
-            $securityAudits = Get-EventLog -LogName Security -Newest 20 -ErrorAction SilentlyContinue |
+            $securityAudits = Get-EventLog -LogName Security -Newest 100 -ErrorAction SilentlyContinue |
                 Select-Object TimeGenerated, Source, EventID, Message
 
             @{
@@ -262,10 +261,10 @@ $scriptBlocks = @{
             $updateSearcher = $updateSession.CreateUpdateSearcher()
 
             $pendingUpdates = $updateSearcher.Search("IsInstalled=0").Updates
-            $installedUpdates = $updateSearcher.Search("IsInstalled=1").Updates | Select-Object -First 20
+            $installedUpdates = $updateSearcher.Search("IsInstalled=1").Updates
 
             $hotfixes = Get-HotFix |
-                Select-Object -First 30 Description, HotFixID, InstalledBy, InstalledOn
+                Select-Object Description, HotFixID, InstalledBy, InstalledOn
 
             @{
                 PendingCount = $pendingUpdates.Count
@@ -494,12 +493,83 @@ $html = @"
             border-radius: 3px;
             font-family: 'Courier New', monospace;
         }
+
+        .collapsible {
+            cursor: pointer;
+            padding: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.1em;
+            font-weight: 600;
+            border-radius: 5px;
+            margin: 10px 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .collapsible:hover {
+            background: #5568d3;
+        }
+
+        .collapsible:after {
+            content: '\25BC';
+            font-size: 0.8em;
+        }
+
+        .collapsible.collapsed:after {
+            content: '\25B6';
+        }
+
+        .collapsible-content {
+            max-height: 500px;
+            overflow: auto;
+            transition: max-height 0.3s ease-out;
+            background: white;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .collapsible-content.collapsed {
+            max-height: 0;
+            overflow: hidden;
+        }
+
+        .item-count {
+            background: rgba(255,255,255,0.2);
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
     </style>
+    <script>
+        function toggleCollapsible(button) {
+            button.classList.toggle('collapsed');
+            var content = button.nextElementSibling;
+            content.classList.toggle('collapsed');
+        }
+
+        window.onload = function() {
+            // Auto-collapse large tables
+            var collapsibles = document.getElementsByClassName('collapsible');
+            for (var i = 0; i < collapsibles.length; i++) {
+                if (collapsibles[i].hasAttribute('data-auto-collapse')) {
+                    collapsibles[i].classList.add('collapsed');
+                    collapsibles[i].nextElementSibling.classList.add('collapsed');
+                }
+            }
+        };
+    </script>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🖥️ System Information Report</h1>
+            <h1>System Information Report</h1>
             <p>Computer: <strong>$($env:COMPUTERNAME)</strong> | Generated: <strong>$(Get-Date -Format "yyyy-MM-dd HH:mm:ss")</strong></p>
         </div>
 
@@ -509,7 +579,7 @@ $html = @"
 # User Information Section
 $html += @"
             <div class="section">
-                <h2>👤 User Information</h2>
+                <h2>User Information</h2>
 "@
 if ($results.UserInfo.Error) {
     $html += "<div class='error'>Error: $($results.UserInfo.Error)</div>"
@@ -537,7 +607,7 @@ $html += "</div>"
 # Host Information Section
 $html += @"
             <div class="section">
-                <h2>💻 Host Information</h2>
+                <h2>Host Information</h2>
 "@
 if ($results.HostInfo.Error) {
     $html += "<div class='error'>Error: $($results.HostInfo.Error)</div>"
@@ -590,7 +660,7 @@ $html += "</div>"
 # Uptime & Resources Section
 $html += @"
             <div class="section">
-                <h2>📊 System Resources & Uptime</h2>
+                <h2>System Resources & Uptime</h2>
 "@
 if ($results.UptimeResources.Error) {
     $html += "<div class='error'>Error: $($results.UptimeResources.Error)</div>"
@@ -640,7 +710,7 @@ $html += "</div>"
 # Network Information Section
 $html += @"
             <div class="section">
-                <h2>🌐 Network Information</h2>
+                <h2>Network Information</h2>
 "@
 if ($results.NetworkInfo.Error) {
     $html += "<div class='error'>Error: $($results.NetworkInfo.Error)</div>"
@@ -674,7 +744,7 @@ $html += "</div>"
 # DNS Information Section
 $html += @"
             <div class="section">
-                <h2>🔍 DNS Information</h2>
+                <h2>DNS Information</h2>
 "@
 if ($results.DNSInfo.Error) {
     $html += "<div class='error'>Error: $($results.DNSInfo.Error)</div>"
@@ -687,11 +757,13 @@ if ($results.DNSInfo.Error) {
     $html += "</table>"
 
     if ($results.DNSInfo.DNSCache) {
-        $html += "<h3>Recent DNS Cache (Top 20)</h3><table><tr><th>Name</th><th>Type</th><th>TTL</th><th>Data</th></tr>"
+        $cacheCount = ($results.DNSInfo.DNSCache | Measure-Object).Count
+        $html += "<button class='collapsible' data-auto-collapse onclick='toggleCollapsible(this)'>DNS Cache <span class='item-count'>$cacheCount entries</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>Name</th><th>Type</th><th>TTL</th><th>Data</th></tr>"
         foreach ($cache in $results.DNSInfo.DNSCache) {
             $html += "<tr><td>$($cache.Name)</td><td>$($cache.Type)</td><td>$($cache.TimeToLive)</td><td>$($cache.Data)</td></tr>"
         }
-        $html += "</table>"
+        $html += "</table></div>"
     }
 }
 $html += "</div>"
@@ -699,7 +771,7 @@ $html += "</div>"
 # Firewall Information Section
 $html += @"
             <div class="section">
-                <h2>🔥 Firewall Information</h2>
+                <h2>Firewall Information</h2>
 "@
 if ($results.FirewallInfo.Error) {
     $html += "<div class='error'>Error: $($results.FirewallInfo.Error)</div>"
@@ -712,11 +784,13 @@ if ($results.FirewallInfo.Error) {
     $html += "</table>"
 
     if ($results.FirewallInfo.ActiveRules) {
-        $html += "<h3>Active Firewall Rules (Top 50)</h3><table><tr><th>Name</th><th>Direction</th><th>Action</th><th>Profile</th></tr>"
+        $rulesCount = ($results.FirewallInfo.ActiveRules | Measure-Object).Count
+        $html += "<button class='collapsible' data-auto-collapse onclick='toggleCollapsible(this)'>Active Firewall Rules <span class='item-count'>$rulesCount rules</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>Name</th><th>Direction</th><th>Action</th><th>Profile</th></tr>"
         foreach ($rule in $results.FirewallInfo.ActiveRules) {
             $html += "<tr><td>$($rule.DisplayName)</td><td>$($rule.Direction)</td><td>$($rule.Action)</td><td>$($rule.Profile)</td></tr>"
         }
-        $html += "</table>"
+        $html += "</table></div>"
     }
 }
 $html += "</div>"
@@ -724,25 +798,29 @@ $html += "</div>"
 # Installed Applications Section
 $html += @"
             <div class="section">
-                <h2>📦 Installed Applications</h2>
+                <h2>Installed Applications</h2>
 "@
 if ($results.InstalledApps.Error) {
     $html += "<div class='error'>Error: $($results.InstalledApps.Error)</div>"
 } else {
     if ($results.InstalledApps.TraditionalApps) {
-        $html += "<h3>Traditional Applications (Top 100)</h3><table><tr><th>Name</th><th>Version</th><th>Publisher</th><th>Install Date</th></tr>"
+        $tradAppCount = ($results.InstalledApps.TraditionalApps | Measure-Object).Count
+        $html += "<button class='collapsible' data-auto-collapse onclick='toggleCollapsible(this)'>Traditional Applications <span class='item-count'>$tradAppCount apps</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>Name</th><th>Version</th><th>Publisher</th><th>Install Date</th><th>Install Location</th></tr>"
         foreach ($app in $results.InstalledApps.TraditionalApps) {
-            $html += "<tr><td>$($app.DisplayName)</td><td>$($app.DisplayVersion)</td><td>$($app.Publisher)</td><td>$($app.InstallDate)</td></tr>"
+            $html += "<tr><td>$($app.DisplayName)</td><td>$($app.DisplayVersion)</td><td>$($app.Publisher)</td><td>$($app.InstallDate)</td><td>$($app.InstallLocation)</td></tr>"
         }
-        $html += "</table>"
+        $html += "</table></div>"
     }
 
     if ($results.InstalledApps.ModernApps) {
-        $html += "<h3>Modern Apps (Top 30)</h3><table><tr><th>Name</th><th>Version</th><th>Publisher</th></tr>"
+        $modernAppCount = ($results.InstalledApps.ModernApps | Measure-Object).Count
+        $html += "<button class='collapsible' data-auto-collapse onclick='toggleCollapsible(this)'>Modern Apps <span class='item-count'>$modernAppCount apps</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>Name</th><th>Version</th><th>Publisher</th><th>Install Location</th></tr>"
         foreach ($app in $results.InstalledApps.ModernApps) {
-            $html += "<tr><td>$($app.Name)</td><td>$($app.Version)</td><td>$($app.Publisher)</td></tr>"
+            $html += "<tr><td>$($app.Name)</td><td>$($app.Version)</td><td>$($app.Publisher)</td><td>$($app.InstallLocation)</td></tr>"
         }
-        $html += "</table>"
+        $html += "</table></div>"
     }
 }
 $html += "</div>"
@@ -750,7 +828,7 @@ $html += "</div>"
 # Services Section
 $html += @"
             <div class="section">
-                <h2>⚙️ Windows Services</h2>
+                <h2>Windows Services</h2>
 "@
 if ($results.Services.Error) {
     $html += "<div class='error'>Error: $($results.Services.Error)</div>"
@@ -766,12 +844,24 @@ if ($results.Services.Error) {
                 </div>
 "@
 
+    if ($results.Services.Running -and $results.Services.Running.Count -gt 0) {
+        $runningCount = ($results.Services.Running | Measure-Object).Count
+        $html += "<button class='collapsible' data-auto-collapse onclick='toggleCollapsible(this)'>Running Services <span class='item-count'>$runningCount services</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>Name</th><th>Display Name</th><th>Status</th><th>Start Type</th></tr>"
+        foreach ($service in $results.Services.Running) {
+            $html += "<tr><td>$($service.Name)</td><td>$($service.DisplayName)</td><td class='status-good'>$($service.Status)</td><td>$($service.StartType)</td></tr>"
+        }
+        $html += "</table></div>"
+    }
+
     if ($results.Services.StoppedAutomatic -and $results.Services.StoppedAutomatic.Count -gt 0) {
-        $html += "<h3>⚠️ Stopped Automatic Services</h3><table><tr><th>Name</th><th>Display Name</th><th>Status</th><th>Start Type</th></tr>"
-        foreach ($service in $results.Services.StoppedAutomatic | Select-Object -First 30) {
+        $stoppedCount = ($results.Services.StoppedAutomatic | Measure-Object).Count
+        $html += "<button class='collapsible' onclick='toggleCollapsible(this)'>Stopped Automatic Services <span class='item-count'>$stoppedCount services</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>Name</th><th>Display Name</th><th>Status</th><th>Start Type</th></tr>"
+        foreach ($service in $results.Services.StoppedAutomatic) {
             $html += "<tr><td>$($service.Name)</td><td>$($service.DisplayName)</td><td class='status-warning'>$($service.Status)</td><td>$($service.StartType)</td></tr>"
         }
-        $html += "</table>"
+        $html += "</table></div>"
     }
 }
 $html += "</div>"
@@ -779,29 +869,45 @@ $html += "</div>"
 # Event Logs Section
 $html += @"
             <div class="section">
-                <h2>📋 Event Viewer Logs</h2>
+                <h2>Event Viewer Logs</h2>
 "@
 if ($results.EventLogs.Error) {
     $html += "<div class='error'>Error: $($results.EventLogs.Error)</div>"
 } else {
     if ($results.EventLogs.SystemErrors) {
-        $html += "<h3>System Errors (Last 20)</h3><table><tr><th>Time</th><th>Source</th><th>Event ID</th><th>Message</th></tr>"
+        $sysErrorCount = ($results.EventLogs.SystemErrors | Measure-Object).Count
+        $html += "<button class='collapsible' data-auto-collapse onclick='toggleCollapsible(this)'>System Errors <span class='item-count'>$sysErrorCount events</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>Time</th><th>Source</th><th>Event ID</th><th>Message</th></tr>"
         foreach ($event in $results.EventLogs.SystemErrors) {
             $msg = $event.Message -replace "`r`n", " " -replace "`n", " "
-            if ($msg.Length -gt 150) { $msg = $msg.Substring(0, 150) + "..." }
+            if ($msg.Length -gt 200) { $msg = $msg.Substring(0, 200) + "..." }
             $html += "<tr><td>$($event.TimeGenerated)</td><td>$($event.Source)</td><td>$($event.EventID)</td><td>$msg</td></tr>"
         }
-        $html += "</table>"
+        $html += "</table></div>"
     }
 
     if ($results.EventLogs.ApplicationErrors) {
-        $html += "<h3>Application Errors (Last 20)</h3><table><tr><th>Time</th><th>Source</th><th>Event ID</th><th>Message</th></tr>"
+        $appErrorCount = ($results.EventLogs.ApplicationErrors | Measure-Object).Count
+        $html += "<button class='collapsible' data-auto-collapse onclick='toggleCollapsible(this)'>Application Errors <span class='item-count'>$appErrorCount events</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>Time</th><th>Source</th><th>Event ID</th><th>Message</th></tr>"
         foreach ($event in $results.EventLogs.ApplicationErrors) {
             $msg = $event.Message -replace "`r`n", " " -replace "`n", " "
-            if ($msg.Length -gt 150) { $msg = $msg.Substring(0, 150) + "..." }
+            if ($msg.Length -gt 200) { $msg = $msg.Substring(0, 200) + "..." }
             $html += "<tr><td>$($event.TimeGenerated)</td><td>$($event.Source)</td><td>$($event.EventID)</td><td>$msg</td></tr>"
         }
-        $html += "</table>"
+        $html += "</table></div>"
+    }
+
+    if ($results.EventLogs.SecurityAudits) {
+        $secAuditCount = ($results.EventLogs.SecurityAudits | Measure-Object).Count
+        $html += "<button class='collapsible' data-auto-collapse onclick='toggleCollapsible(this)'>Security Audits <span class='item-count'>$secAuditCount events</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>Time</th><th>Source</th><th>Event ID</th><th>Message</th></tr>"
+        foreach ($event in $results.EventLogs.SecurityAudits) {
+            $msg = $event.Message -replace "`r`n", " " -replace "`n", " "
+            if ($msg.Length -gt 200) { $msg = $msg.Substring(0, 200) + "..." }
+            $html += "<tr><td>$($event.TimeGenerated)</td><td>$($event.Source)</td><td>$($event.EventID)</td><td>$msg</td></tr>"
+        }
+        $html += "</table></div>"
     }
 }
 $html += "</div>"
@@ -809,7 +915,7 @@ $html += "</div>"
 # Windows Update Section
 $html += @"
             <div class="section">
-                <h2>🔄 Windows Update Status</h2>
+                <h2>Windows Update Status</h2>
 "@
 if ($results.WindowsUpdate.Error) {
     $html += "<div class='error'>Error: $($results.WindowsUpdate.Error)</div>"
@@ -823,19 +929,22 @@ if ($results.WindowsUpdate.Error) {
 "@
 
     if ($results.WindowsUpdate.PendingUpdates -and $results.WindowsUpdate.PendingCount -gt 0) {
-        $html += "<h3>Pending Updates</h3><ul>"
-        foreach ($update in $results.WindowsUpdate.PendingUpdates | Select-Object -First 20) {
+        $html += "<button class='collapsible' onclick='toggleCollapsible(this)'>Pending Updates <span class='item-count'>$($results.WindowsUpdate.PendingCount) updates</span></button>"
+        $html += "<div class='collapsible-content'><ul>"
+        foreach ($update in $results.WindowsUpdate.PendingUpdates) {
             $html += "<li>$update</li>"
         }
-        $html += "</ul>"
+        $html += "</ul></div>"
     }
 
     if ($results.WindowsUpdate.RecentHotfixes) {
-        $html += "<h3>Recent Hotfixes (Top 30)</h3><table><tr><th>HotFix ID</th><th>Description</th><th>Installed By</th><th>Installed On</th></tr>"
+        $hotfixCount = ($results.WindowsUpdate.RecentHotfixes | Measure-Object).Count
+        $html += "<button class='collapsible' data-auto-collapse onclick='toggleCollapsible(this)'>Installed Hotfixes <span class='item-count'>$hotfixCount hotfixes</span></button>"
+        $html += "<div class='collapsible-content'><table><tr><th>HotFix ID</th><th>Description</th><th>Installed By</th><th>Installed On</th></tr>"
         foreach ($hotfix in $results.WindowsUpdate.RecentHotfixes) {
             $html += "<tr><td>$($hotfix.HotFixID)</td><td>$($hotfix.Description)</td><td>$($hotfix.InstalledBy)</td><td>$($hotfix.InstalledOn)</td></tr>"
         }
-        $html += "</table>"
+        $html += "</table></div>"
     }
 }
 $html += "</div>"
@@ -856,10 +965,10 @@ $html += @"
 # Save HTML report
 try {
     $html | Out-File -FilePath $OutputPath -Encoding UTF8
-    Write-Host "`n✅ Report generated successfully!" -ForegroundColor Green
-    Write-Host "📄 Location: $OutputPath" -ForegroundColor Cyan
+    Write-Host "`n[SUCCESS] Report generated successfully!" -ForegroundColor Green
+    Write-Host "[INFO] Location: $OutputPath" -ForegroundColor Cyan
     Write-Host "`nOpening report in default browser..." -ForegroundColor Yellow
     Start-Process $OutputPath
 } catch {
-    Write-Host "`n❌ Error saving report: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "`n[ERROR] Error saving report: $($_.Exception.Message)" -ForegroundColor Red
 }
