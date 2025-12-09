@@ -376,12 +376,6 @@ $html = @"
             align-items: center;
         }
 
-        .section h2::before {
-            content: '▶';
-            margin-right: 10px;
-            font-size: 0.7em;
-        }
-
         .section h3 {
             color: #764ba2;
             margin: 15px 0 10px 0;
@@ -517,12 +511,12 @@ $html = @"
         }
 
         .collapsible:after {
-            content: '\25BC';
+            content: '[Hide]';
             font-size: 0.8em;
         }
 
         .collapsible.collapsed:after {
-            content: '\25B6';
+            content: '[Show]';
         }
 
         .collapsible-content {
